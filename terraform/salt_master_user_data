@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Get salt repo key
+wget -O - https://repo.saltstack.com/apt/ubuntu/16.04/amd64/latest/SALTSTACK-GPG-KEY.pub | sudo apt-key add -
+
+# Add salt repo 
+sudo echo "deb http://repo.saltstack.com/apt/ubuntu/16.04/amd64/latest xenial main" > /etc/apt/sources.list.d/saltstack.list
+
+# apt update
+sudo apt-get update
+
+# Install salt minion
+sudo apt-get -y install salt-master
+
+# Salt master config
+cat <<'EOF' >> /etc/salt/master
+file_roots:
+    base:
+        - /srv/salt
+
+pillar_roots:
+    base:
+        - /srv/pillar
+EOF
+
+# Salt master service restart
+sudo /etc/init.d/salt-master restart
+
+# Git clone to salt /srv
+git clone https://gitlab.com/stitchlab/cookbooks.git /tmp/grab/
+cp -r /tmp/grab/salt /srv/salt
+cp -r /tmp/grab/pillar /srv/pillar
+
+# Change mariaDB Pillar file
+#sed -i 's/node01_ip//g' "/srv/pillar/service/${service_name}/mariadb.sls"
+#sed -i 's/node02_ip//g' "/srv/pillar/service/${service_name}/mariadb.sls"
+
+# Salt master config
+cat <<'EOF' >> /root/salt_script.sh
+salt '*' grains.append roles apps
+salt '*' grains.append roles influxdb
+salt '*' grains.append roles kapacitor
+salt '*' state.apply test=true pillar='{"channel":"grab-monitoring", "hookurl":"https://hooks.slack.com/services/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"}'
+EOF
